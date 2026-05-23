@@ -1,0 +1,33 @@
+---
+import '../styles/global.css';
+
+const error = Astro.url.searchParams.get('error');
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login - AI Threads</title>
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="panel login-card">
+        <h1 style="margin: 0 0 6px;">AI Threads</h1>
+        <p class="muted" style="margin-top: 0;">Masuk untuk generate, review, dan schedule konten Threads.</p>
+        {error && <div class="alert">Email atau password tidak valid.</div>}
+        <form class="form-grid" method="post" action="/api/auth/login" style="margin-top: 18px;">
+          <div class="field">
+            <label for="email">Email</label>
+            <input class="input" id="email" name="email" type="email" required autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input class="input" id="password" name="password" type="password" required autocomplete="current-password" />
+          </div>
+          <button class="btn" type="submit">Login</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

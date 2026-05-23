@@ -1,0 +1,179 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { assertSupabase, supabase } from '../lib/db';
+import { formatModelPrice, listOpenRouterModels } from '../lib/openrouter';
+import type { OpenRouterModel } from '../lib/openrouter';
+
+const { data: models, error: modelsError } = await supabase
+  .from('llm_settings')
+  .select('id, model_name, temperature, max_tokens, active, is_default')
+  .order('created_at', { ascending: false });
+const { data: accounts, error: accountsError } = await supabase
+  .from('buffer_accounts')
+  .select('id, profile_id, profile_name, profile_type, active')
+  .order('created_at', { ascending: false });
+const { data: templates, error: templatesError } = await supabase
+  .from('prompt_templates')
+  .select('id, title, category, active, is_default')
+  .order('created_at', { ascending: false });
+
+const modelRows = assertSupabase(models, modelsError) || [];
+const accountRows = assertSupabase(accounts, accountsError) || [];
+const templateRows = assertSupabase(templates, templatesError) || [];
+
+let openRouterModels: OpenRouterModel[] = [];
+let openRouterModelsError = '';
+
+try {
+  openRouterModels = await listOpenRouterModels();
+} catch (error) {
+  openRouterModelsError = error instanceof Error ? error.message : 'Gagal memuat model OpenRouter.';
+}
+---
+
+<AppLayout>
+  <div class="topbar">
+    <div>
+      <h1>Settings</h1>
+      <p class="muted">Konfigurasi OpenRouter, Buffer, dan prompt template.</p>
+    </div>
+  </div>
+
+  <section class="grid two">
+    <form class="panel form-grid" method="post" action="/api/settings/model">
+      <h2 style="margin: 0;">OpenRouter Model</h2>
+      <div class="field">
+        <label for="model_name">Model name</label>
+        <input class="input" id="model_name" name="model_name" placeholder="openai/gpt-5" required />
+      </div>
+      <div class="field">
+        <label for="api_key">API key</label>
+        <input class="input" id="api_key" name="api_key" type="password" placeholder="Kosongkan jika memakai OPENROUTER_API_KEY" />
+      </div>
+      <div class="field">
+        <label for="temperature">Temperature</label>
+        <input class="input" id="temperature" name="temperature" type="number" min="0" max="2" step="0.1" value="0.7" />
+      </div>
+      <div class="field">
+        <label for="max_tokens">Max tokens</label>
+        <input class="input" id="max_tokens" name="max_tokens" type="number" min="100" max="8000" value="1200" />
+      </div>
+      <button class="btn" type="submit">Simpan Model</button>
+    </form>
+
+    <form class="panel form-grid" method="post" action="/api/settings/buffer">
+      <h2 style="margin: 0;">Buffer Account</h2>
+      <div class="field">
+        <label for="profile_id">Profile ID</label>
+        <input class="input" id="profile_id" name="profile_id" required />
+      </div>
+      <div class="field">
+        <label for="profile_name">Profile name</label>
+        <input class="input" id="profile_name" name="profile_name" required />
+      </div>
+      <div class="field">
+        <label for="profile_type">Profile type</label>
+        <input class="input" id="profile_type" name="profile_type" value="threads" />
+      </div>
+      <div class="field">
+        <label for="access_token">Access token</label>
+        <input class="input" id="access_token" name="access_token" type="password" placeholder="Kosongkan jika memakai BUFFER_ACCESS_TOKEN" />
+      </div>
+      <button class="btn" type="submit">Simpan Buffer</button>
+    </form>
+  </section>
+
+  <section class="panel" style="margin-top: 16px;">
+    <h2 style="margin-top: 0;">Prompt Template</h2>
+    <form class="form-grid" method="post" action="/api/settings/template">
+      <div class="field">
+        <label for="title">Title</label>
+        <input class="input" id="title" name="title" required />
+      </div>
+      <div class="field">
+        <label for="category">Category</label>
+        <input class="input" id="category" name="category" value="Marketing Content" required />
+      </div>
+      <div class="field">
+        <label for="prompt">Prompt</label>
+        <textarea class="textarea" id="prompt" name="prompt" required></textarea>
+      </div>
+      <button class="btn" type="submit">Simpan Template</button>
+    </form>
+  </section>
+
+  <section class="grid two" style="margin-top: 16px;">
+    <div class="panel">
+      <h2 style="margin-top: 0;">Model</h2>
+      <table class="table">
+        <thead><tr><th>Model</th><th>Tokens</th></tr></thead>
+        <tbody>
+          {modelRows.map((model) => (
+            <tr><td>{model.model_name}{model.is_default ? ' (default)' : ''}</td><td>{model.max_tokens}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top: 0;">Buffer</h2>
+      <table class="table">
+        <thead><tr><th>Profile</th><th>Type</th></tr></thead>
+        <tbody>
+          {accountRows.map((account) => (
+            <tr><td>{account.profile_name}<div class="muted">{account.profile_id}</div></td><td>{account.profile_type}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-top: 16px;">
+    <div class="topbar" style="margin-bottom: 12px;">
+      <div>
+        <h2 style="margin: 0;">OpenRouter Models & Pricing</h2>
+        <p class="muted" style="margin: 6px 0 0;">Harga ditampilkan dalam USD per 1 juta token.</p>
+      </div>
+      <span class="muted">{openRouterModels.length} model</span>
+    </div>
+    {openRouterModelsError ? (
+      <div class="alert">{openRouterModelsError}</div>
+    ) : (
+      <div style="overflow-x: auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nama Model</th>
+              <th>Model ID</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            {openRouterModels.map((model) => (
+              <tr>
+                <td><strong>{model.name}</strong></td>
+                <td><code>{model.id}</code></td>
+                <td>{formatModelPrice(model.pricing?.prompt)}</td>
+                <td>{formatModelPrice(model.pricing?.completion)}</td>
+                <td>{model.context_length ? Number(model.context_length).toLocaleString('en-US') : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+
+  <section class="panel" style="margin-top: 16px;">
+    <h2 style="margin-top: 0;">Templates</h2>
+    <table class="table">
+      <thead><tr><th>Title</th><th>Category</th></tr></thead>
+      <tbody>
+        {templateRows.map((template) => (
+          <tr><td>{template.title}{template.is_default ? ' (default)' : ''}</td><td>{template.category}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</AppLayout>

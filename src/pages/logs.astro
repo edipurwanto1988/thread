@@ -1,0 +1,38 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { assertSupabase, supabase } from '../lib/db';
+
+const { data: logs, error } = await supabase
+  .from('activity_logs')
+  .select('action, detail, created_at')
+  .order('created_at', { ascending: false })
+  .limit(200);
+
+const logRows = assertSupabase(logs, error) || [];
+---
+
+<AppLayout>
+  <div class="topbar">
+    <div>
+      <h1>Logs</h1>
+      <p class="muted">Audit aktivitas sistem.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <table class="table">
+      <thead>
+        <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        {logRows.map((log) => (
+          <tr>
+            <td>{new Date(log.created_at).toLocaleString('id-ID')}</td>
+            <td>{log.action}</td>
+            <td>{log.detail}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</AppLayout>

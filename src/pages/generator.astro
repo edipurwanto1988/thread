@@ -1,0 +1,146 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { assertSupabase, supabase } from '../lib/db';
+
+const { data: models, error: modelsError } = await supabase
+  .from('llm_settings')
+  .select('model_name')
+  .eq('active', true)
+  .order('is_default', { ascending: false })
+  .order('model_name', { ascending: true });
+const { data: templates, error: templatesError } = await supabase
+  .from('prompt_templates')
+  .select('id, title, prompt')
+  .eq('active', true)
+  .order('is_default', { ascending: false })
+  .order('title', { ascending: true });
+
+const modelRows = assertSupabase(models, modelsError) || [];
+const templateRows = assertSupabase(templates, templatesError) || [];
+---
+
+<AppLayout>
+  <div class="topbar">
+    <div>
+      <h1>Generator</h1>
+      <p class="muted">Generate konten Threads dengan OpenRouter lalu simpan sebagai draft.</p>
+    </div>
+  </div>
+
+  <section class="grid two">
+    <form id="generate-form" class="panel form-grid">
+      <div class="field">
+        <label for="topic">Topik</label>
+        <textarea class="textarea" id="topic" name="topic" required placeholder="Contoh: AI untuk mahasiswa"></textarea>
+      </div>
+      <div class="field">
+        <label for="targetAudience">Target audience</label>
+        <input class="input" id="targetAudience" name="targetAudience" value="content creator dan marketer" />
+      </div>
+      <div class="field">
+        <label for="style">Gaya tulisan</label>
+        <select class="select" id="style" name="style">
+          <option value="casual">Casual</option>
+          <option value="professional">Professional</option>
+          <option value="persuasive">Persuasive</option>
+          <option value="educational">Educational</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="language">Bahasa</label>
+        <select class="select" id="language" name="language">
+          <option value="id">Indonesia</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="totalPosts">Jumlah post</label>
+        <input class="input" id="totalPosts" name="totalPosts" type="number" min="1" max="20" value="5" />
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <select class="select" id="model" name="model">
+          {modelRows.map((model) => <option value={model.model_name}>{model.model_name}</option>)}
+        </select>
+      </div>
+      <div class="field">
+        <label for="templateId">Prompt template</label>
+        <select class="select" id="templateId" name="templateId">
+          {templateRows.map((template) => <option value={template.id}>{template.title}</option>)}
+        </select>
+      </div>
+      <button class="btn" type="submit">Generate</button>
+    </form>
+
+    <form id="save-form" class="panel form-grid">
+      <div class="field">
+        <label for="title">Judul draft</label>
+        <input class="input" id="title" name="title" required />
+      </div>
+      <div class="field">
+        <label for="content">Konten</label>
+        <textarea class="textarea" id="content" name="content" required style="min-height: 420px;"></textarea>
+      </div>
+      <input id="save-topic" name="topic" type="hidden" />
+      <input id="save-model" name="modelName" type="hidden" />
+      <div class="actions">
+        <button class="btn" type="submit">Simpan Draft</button>
+        <span id="status" class="muted"></span>
+      </div>
+    </form>
+  </section>
+
+  <script>
+    const generateForm = document.querySelector('#generate-form');
+    const saveForm = document.querySelector('#save-form');
+    const statusEl = document.querySelector('#status');
+    const contentEl = document.querySelector('#content');
+    const titleEl = document.querySelector('#title');
+    const topicSaveEl = document.querySelector('#save-topic');
+    const modelSaveEl = document.querySelector('#save-model');
+
+    generateForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(generateForm instanceof HTMLFormElement)) return;
+      if (!(statusEl instanceof HTMLElement)) return;
+      if (!(contentEl instanceof HTMLTextAreaElement)) return;
+      if (!(titleEl instanceof HTMLInputElement)) return;
+      if (!(topicSaveEl instanceof HTMLInputElement)) return;
+      if (!(modelSaveEl instanceof HTMLInputElement)) return;
+
+      statusEl.textContent = 'Generating...';
+      const payload = Object.fromEntries(new FormData(generateForm));
+      const response = await fetch('/api/content/generate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        statusEl.textContent = data.error || 'Generate gagal.';
+        return;
+      }
+      contentEl.value = data.content;
+      titleEl.value = String(payload.topic || '').slice(0, 90);
+      topicSaveEl.value = String(payload.topic || '');
+      modelSaveEl.value = data.modelName;
+      statusEl.textContent = 'Konten siap disimpan.';
+    });
+
+    saveForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(saveForm instanceof HTMLFormElement)) return;
+      if (!(statusEl instanceof HTMLElement)) return;
+
+      statusEl.textContent = 'Menyimpan...';
+      const payload = Object.fromEntries(new FormData(saveForm));
+      const response = await fetch('/api/content/save', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      statusEl.textContent = response.ok ? 'Draft tersimpan.' : data.error || 'Simpan gagal.';
+    });
+  </script>
+</AppLayout>

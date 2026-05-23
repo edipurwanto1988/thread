@@ -1,0 +1,37 @@
+---
+import '../styles/global.css';
+
+const user = Astro.locals.user;
+const nav = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/generator', label: 'Generator' },
+  { href: '/drafts', label: 'Drafts' },
+  { href: '/settings', label: 'Settings' },
+  { href: '/logs', label: 'Logs' }
+];
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Threads Generator</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">AI Threads</div>
+        <nav class="nav" aria-label="Main navigation">
+          {nav.map((item) => (
+            <a class={Astro.url.pathname.startsWith(item.href) ? 'active' : ''} href={item.href}>{item.label}</a>
+          ))}
+          <a href="/api/auth/logout">Logout</a>
+        </nav>
+        <p class="muted" style="margin-top: 24px; color: #a9b5c4;">{user?.email}</p>
+      </aside>
+      <main class="main">
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

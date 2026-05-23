@@ -1,0 +1,74 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { assertSupabase, supabase } from '../lib/db';
+
+const { data: statsRows, error: statsError } = await supabase.from('posts').select('status');
+const { data: recentPosts, error: recentError } = await supabase
+  .from('posts')
+  .select('id, title, status, created_at')
+  .order('created_at', { ascending: false })
+  .limit(8);
+const { data: logs, error: logsError } = await supabase
+  .from('activity_logs')
+  .select('action, detail, created_at')
+  .order('created_at', { ascending: false })
+  .limit(8);
+
+const statRows = assertSupabase(statsRows, statsError) || [];
+const recentPostRows = assertSupabase(recentPosts, recentError) || [];
+const logRows = assertSupabase(logs, logsError) || [];
+const stats = statRows.reduce((result, row) => {
+  result[row.status] = (result[row.status] || 0) + 1;
+  return result;
+}, {} as Record<string, number>);
+---
+
+<AppLayout>
+  <div class="topbar">
+    <div>
+      <h1>Dashboard</h1>
+      <p class="muted">Ringkasan workflow Draft -> Approve -> Schedule -> Publish.</p>
+    </div>
+    <a class="btn" href="/generator">Generate Konten</a>
+  </div>
+
+  <section class="grid stats">
+    {['draft', 'approved', 'scheduled', 'published', 'failed'].map((status) => (
+      <div class="panel stat">
+        <div class="label">{status}</div>
+        <div class="value">{stats[status] || 0}</div>
+      </div>
+    ))}
+  </section>
+
+  <section class="grid two" style="margin-top: 16px;">
+    <div class="panel">
+      <h2 style="margin-top: 0;">Draft Terbaru</h2>
+      <table class="table">
+        <thead><tr><th>Judul</th><th>Status</th></tr></thead>
+        <tbody>
+          {recentPostRows.map((post) => (
+            <tr>
+              <td>{post.title}</td>
+              <td><span class={`badge ${post.status}`}>{post.status}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top: 0;">Aktivitas</h2>
+      <table class="table">
+        <thead><tr><th>Aksi</th><th>Detail</th></tr></thead>
+        <tbody>
+          {logRows.map((log) => (
+            <tr>
+              <td>{log.action}</td>
+              <td>{log.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</AppLayout>

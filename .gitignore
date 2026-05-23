@@ -1,0 +1,10 @@
+node_modules
+.env
+.astro
+dist
+.agents
+skills-lock.json
+supase.md
+mysql.md
+openrouter.md
+buffer.md

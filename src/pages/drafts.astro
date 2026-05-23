@@ -1,0 +1,117 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { assertSupabase, supabase } from '../lib/db';
+
+const status = Astro.url.searchParams.get('status') || '';
+let postsRequest = supabase
+  .from('posts')
+  .select('id, title, topic, content, status, model_name, created_at')
+  .order('created_at', { ascending: false })
+  .limit(100);
+
+if (status) {
+  postsRequest = postsRequest.eq('status', status);
+}
+
+const { data: posts, error: postsError } = await postsRequest;
+const { data: accounts, error: accountsError } = await supabase
+  .from('buffer_accounts')
+  .select('profile_id, profile_name')
+  .eq('active', true)
+  .order('profile_name', { ascending: true });
+
+const postRows = assertSupabase(posts, postsError) || [];
+const accountRows = assertSupabase(accounts, accountsError) || [];
+---
+
+<AppLayout>
+  <div class="topbar">
+    <div>
+      <h1>Drafts</h1>
+      <p class="muted">Review, approve, schedule, dan publish konten.</p>
+    </div>
+    <form method="get">
+      <select class="select" name="status" onchange="this.form.submit()">
+        <option value="" selected={status === ''}>Semua status</option>
+        {['draft', 'approved', 'scheduled', 'published', 'failed'].map((item) => (
+          <option value={item} selected={status === item}>{item}</option>
+        ))}
+      </select>
+    </form>
+  </div>
+
+  <section class="panel">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Konten</th>
+          <th>Status</th>
+          <th>Schedule</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {postRows.map((post) => (
+          <tr>
+            <td>
+              <strong>{post.title}</strong>
+              <div class="muted">{post.model_name}</div>
+              <div class="content-preview">{post.content}</div>
+            </td>
+            <td><span class={`badge ${post.status}`}>{post.status}</span></td>
+            <td>
+              <form class="form-grid js-schedule" data-post-id={post.id}>
+                <select class="select" name="profileId" required>
+                  {accountRows.map((account) => <option value={account.profile_id}>{account.profile_name}</option>)}
+                </select>
+                <input class="input" name="publishAt" type="datetime-local" required />
+                <button class="btn secondary" type="submit">Schedule</button>
+              </form>
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn secondary js-approve" data-post-id={post.id}>Approve</button>
+                <button class="btn js-publish" data-post-id={post.id}>Publish</button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+
+  <script>
+    async function postJson(url: string, payload: Record<string, FormDataEntryValue | string | undefined>) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) alert(data.error || 'Request gagal.');
+      else window.location.reload();
+    }
+
+    document.querySelectorAll('.js-approve').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (button instanceof HTMLElement) postJson('/api/content/approve', { id: button.dataset.postId });
+      });
+    });
+
+    document.querySelectorAll('.js-publish').forEach((button) => {
+      button.addEventListener('click', () => {
+        if (button instanceof HTMLElement) postJson('/api/content/publish', { id: button.dataset.postId });
+      });
+    });
+
+    document.querySelectorAll('.js-schedule').forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!(form instanceof HTMLFormElement)) return;
+        const payload: Record<string, FormDataEntryValue | string> = Object.fromEntries(new FormData(form));
+        payload.id = form.dataset.postId || '';
+        postJson('/api/content/schedule', payload);
+      });
+    });
+  </script>
+</AppLayout>
